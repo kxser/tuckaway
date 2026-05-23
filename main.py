@@ -7,6 +7,7 @@ from platformdirs import user_data_dir
 from pathlib import Path
 import json
 import os
+import shutil
 
 
 console = Console()
@@ -51,6 +52,17 @@ class FileHandler:
     @staticmethod
     def dir_is_valid(path, mode=os.R_OK):
         return os.path.isabs(path) and os.path.isdir(path) and os.access(path, mode)
+
+
+    def recursively_copy_dir(self, from_dir, to_dir, ignore=None):
+        if not ignore == None:
+            shutil.copytree(from_dir, to_dir, symlinks=False, ignore=shutil.ignore_patterns(*ignore),
+                 ignore_dangling_symlinks=False,
+                dirs_exist_ok=True)
+        else:
+            shutil.copytree(from_dir, to_dir, symlinks=False, ignore=None,
+                ignore_dangling_symlinks=False,
+                    dirs_exist_ok=True)
 
 
 class Settings:
@@ -134,7 +146,7 @@ def main():
     data_dir.mkdir(parents=True, exist_ok=True)
     settings = Settings(config_path)
     file_handler = FileHandler()
-
+    file_handler.recursively_copy_dir("/Users/ritter/Documents/Vault/Projects/easybackup/from", "/Users/ritter/Documents/Vault/Projects/easybackup/to")
     console.print(Panel.fit(
         f"[bold bright_cyan]tuckaway[/] [dim]v0.1.0[/]\n"
         f"[dim]by[/] [cyan]Derin Alan Ritter[/] [dim]·[/] "
