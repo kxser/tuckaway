@@ -1,14 +1,15 @@
-import questionary
-from questionary import Choice, Separator, select
-
-from rich.console import Console
-from rich.panel import Panel
-from platformdirs import user_data_dir
-from pathlib import Path
 import json
 import os
 import shutil
+from pathlib import Path
 
+import pyzipper
+import questionary
+from platformdirs import user_data_dir
+from questionary import Choice, Separator, select
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import Progress
 
 console = Console()
 
@@ -45,24 +46,63 @@ IGNORE_HELP = r"""[bold cyan]IGNORE PATTERNS[/]
 
 
 def validate_dir(path):
-    return FileHandler.dir_is_valid(path) or "Directory must be valid, absolute, and readable. Try again."
+    return (
+        FileHandler.dir_is_valid(path)
+        or "Directory must be valid, absolute, and readable. Try again."
+    )
 
 
 class FileHandler:
+    def __init__(self):
+        pass
+
     @staticmethod
     def dir_is_valid(path, mode=os.R_OK):
         return os.path.isabs(path) and os.path.isdir(path) and os.access(path, mode)
 
-
     def recursively_copy_dir(self, from_dir, to_dir, ignore=None):
+        # to_dir = os.path.join(to_dir, os.path.relpath(from_dir, "/"))
+
         if not ignore == None:
-            shutil.copytree(from_dir, to_dir, symlinks=False, ignore=shutil.ignore_patterns(*ignore),
-                 ignore_dangling_symlinks=False,
-                dirs_exist_ok=True)
-        else:
-            shutil.copytree(from_dir, to_dir, symlinks=False, ignore=None,
+            shutil.copytree(
+                from_dir,
+                to_dir,
+                symlinks=False,
+                ignore=shutil.ignore_patterns(*ignore),
                 ignore_dangling_symlinks=False,
-                    dirs_exist_ok=True)
+                dirs_exist_ok=True,
+            )
+        else:
+            shutil.copytree(
+                from_dir,
+                to_dir,
+                symlinks=False,
+                ignore=None,
+                ignore_dangling_symlinks=False,
+                dirs_exist_ok=True,
+            )
+
+
+def compress_dir(self, src_dir, out_path, password, level=6):
+    files = []
+    for root, _, names in os.walk(src_dir):
+        for name in names:
+            files.append(os.path.join(root, name))
+
+    with pyzipper.AESZipFile(
+        out_path,
+        "w",
+        compression=pyzipper.ZIP_DEFLATED,
+        compresslevel=level,
+        encryption=pyzipper.WZ_AES,
+    ) as zf:
+        zf.setpassword(password.encode())
+        with Progress() as progress:
+            task = progress.add_task("Compressing", total=len(files))
+            for f in files:
+                arcname = os.path.relpath(f, src_dir)
+                zf.write(f, arcname)
+                progress.advance(task)
 
 
 class Settings:
@@ -146,43 +186,58 @@ def main():
     data_dir.mkdir(parents=True, exist_ok=True)
     settings = Settings(config_path)
     file_handler = FileHandler()
-    file_handler.recursively_copy_dir("/Users/ritter/Documents/Vault/Projects/easybackup/from", "/Users/ritter/Documents/Vault/Projects/easybackup/to")
-    console.print(Panel.fit(
-        f"[bold bright_cyan]tuckaway[/] [dim]v0.1.0[/]\n"
-        f"[dim]by[/] [cyan]Derin Alan Ritter[/] [dim]·[/] "
-        f"[cyan][link=https://derinaritter.com]derinaritter.com[/link][/] [dim]·[/] "
-        f"[blue]{'─' * 46}[/]\n"
-        f"[dim]Data Dir   [/] [white]{data_dir}[/]\n"
-        f"[dim]Databases     [/] [white]{config_path}[/]\n"
-        f"[dim]Backup To  [/] [white]{settings.to_dir}[/]\n"
-        f"[dim]Backing up [/] [white]{settings.get_from_paths()}[/]",
-        title="[bold bright_cyan]⛁ tuckaway[/]",
-        subtitle="[dim italic]No AI was used in the creation of this script.[/]",
-        border_style="bright_blue",
-        padding=(1, 3),
-    ))
+    file_handler.recursively_copy_dir(
+        "/Users/ritter/Documents/Vault/Projects/easybackup/from",
+        "/Users/ritter/Documents/Vault/Projects/easybackup/to",
+    )
+    console.print(
+        Panel.fit(
+            f"[bold bright_cyan]tuckaway[/] [dim]v0.1.0[/]\n"
+            f"[dim]by[/] [cyan]Derin Alan Ritter[/] [dim]·[/] "
+            f"[cyan][link=https://derinaritter.com]derinaritter.com[/link][/] [dim]·[/] "
+            f"[blue]{'─' * 46}[/]\n"
+            f"[dim]Data Dir   [/] [white]{data_dir}[/]\n"
+            f"[dim]Databases     [/] [white]{config_path}[/]\n"
+            f"[dim]Backup To  [/] [white]{settings.to_dir}[/]\n"
+            f"[dim]Backing up [/] [white]{settings.get_from_paths()}[/]",
+            title="[bold bright_cyan]⛁ tuckaway[/]",
+            subtitle="[dim italic]No AI was used in the creation of this script.[/]",
+            border_style="bright_blue",
+            padding=(1, 3),
+        )
+    )
 
     while True:
         action = select(
-        "Action to take: ", choices=[
-            Separator(),
-            Choice("add new directory", value="add_new_dir", shortcut_key="1"),
-            Choice("delete a directory",  value="remove_dir", shortcut_key="2",),
-            Choice("change backup path",  value="change_to_dir", shortcut_key="3"),
-            Choice("change compression level",  value="change_compression_level", shortcut_key="4"),
-            Choice("change ignore patterns",  value="change_ignore_patterns", shortcut_key="5"),
-
-            Separator(),
-            Choice("start backup",  value="start_backup", shortcut_key="6"),
-            Separator(),
-            Choice("quit",  value="quit", shortcut_key="7"),
-            Choice("reset ALL settings",  value="reset", shortcut_key="8"),
-            Separator(),
-
-        ], use_shortcuts=True,
+            "Action to take: ",
+            choices=[
+                Separator(),
+                Choice("add new directory", value="add_new_dir", shortcut_key="1"),
+                Choice(
+                    "delete a directory",
+                    value="remove_dir",
+                    shortcut_key="2",
+                ),
+                Choice("change backup path", value="change_to_dir", shortcut_key="3"),
+                Choice(
+                    "change compression level",
+                    value="change_compression_level",
+                    shortcut_key="4",
+                ),
+                Choice(
+                    "change ignore patterns",
+                    value="change_ignore_patterns",
+                    shortcut_key="5",
+                ),
+                Separator(),
+                Choice("start backup", value="start_backup", shortcut_key="6"),
+                Separator(),
+                Choice("quit", value="quit", shortcut_key="7"),
+                Choice("reset ALL settings", value="reset", shortcut_key="8"),
+                Separator(),
+            ],
+            use_shortcuts=True,
         ).ask()
-
-
 
         match action:
             case "add_new_dir":
@@ -194,11 +249,19 @@ def main():
                 if dir_path is None:
                     continue
                 if settings.add_from_dir(dir_path):
-                    current = str(settings.get_from_paths()).replace('[', '').replace(']', '')
-                    console.print(f"[green] Directory [/]{dir_path} [green]added to list of sources to copy from.[/] ")
-                    console.print(f"Current list of directories to be copied: {current}")
+                    current = (
+                        str(settings.get_from_paths()).replace("[", "").replace("]", "")
+                    )
+                    console.print(
+                        f"[green] Directory [/]{dir_path} [green]added to list of sources to copy from.[/] "
+                    )
+                    console.print(
+                        f"Current list of directories to be copied: {current}"
+                    )
                 else:
-                    console.print(f"[red bold]Directory [/]{dir_path}[red bold] must be valid, absolute, and readable. Try again.[/]")
+                    console.print(
+                        f"[red bold]Directory [/]{dir_path}[red bold] must be valid, absolute, and readable. Try again.[/]"
+                    )
 
             case "remove_dir":
                 dir_path = questionary.text(
@@ -209,9 +272,15 @@ def main():
                 if dir_path is None:
                     continue
                 if settings.remove_from_dir(dir_path):
-                    current = str(settings.get_from_paths()).replace('[', '').replace(']', '')
-                    console.print(f"[green] Directory [/]{dir_path} [green]removed from list of sources to copy from.[/] ")
-                    console.print(f"Current list of directories to be copied: {current}")
+                    current = (
+                        str(settings.get_from_paths()).replace("[", "").replace("]", "")
+                    )
+                    console.print(
+                        f"[green] Directory [/]{dir_path} [green]removed from list of sources to copy from.[/] "
+                    )
+                    console.print(
+                        f"Current list of directories to be copied: {current}"
+                    )
 
             case "change_to_dir":
                 dir_path = questionary.text(
@@ -222,9 +291,13 @@ def main():
                 if dir_path is None:
                     continue
                 if settings.set_to_dir(dir_path):
-                    console.print(f"[green] Directory [/]{dir_path} [green]will be the new backup location.[/] ")
+                    console.print(
+                        f"[green] Directory [/]{dir_path} [green]will be the new backup location.[/] "
+                    )
                 else:
-                    console.print(f"[red bold]Directory [/]{dir_path}[red bold] must be valid, absolute, and readable. Try again.[/]")
+                    console.print(
+                        f"[red bold]Directory [/]{dir_path}[red bold] must be valid, absolute, and readable. Try again.[/]"
+                    )
 
             case "change_compression_level":
                 level = questionary.text(
@@ -238,20 +311,26 @@ def main():
                 if level is None:
                     continue
                 if settings.set_compression_level(int(level)):
-                    console.print(f"[green] Compression level [/]{level} [green]will be used.[/] ")
+                    console.print(
+                        f"[green] Compression level [/]{level} [green]will be used.[/] "
+                    )
                 else:
-                    console.print(f"[red bold]Compression level [/]{level}[red bold] must be an integer between 0 and 9.[/]")
+                    console.print(
+                        f"[red bold]Compression level [/]{level}[red bold] must be an integer between 0 and 9.[/]"
+                    )
 
             case "change_ignore_patterns":
                 console.print(IGNORE_HELP)
                 patterns = questionary.text(
-                    'Ignore patterns (space separated):',
+                    "Ignore patterns (space separated):",
                 ).ask()
 
                 if patterns is None:
                     continue
                 if settings.set_ignore_patterns(patterns):
-                    console.print(f"[green] Ignore patterns [/]{', '.join(settings.ignore_patterns)} [green]has been set.[/] ")
+                    console.print(
+                        f"[green] Ignore patterns [/]{', '.join(settings.ignore_patterns)} [green]has been set.[/] "
+                    )
 
             case "start_backup":
                 ...
@@ -259,7 +338,9 @@ def main():
                 raise SystemExit(0)
             case "reset":
                 settings.reset_settings()
-                console.print("[green]Settings and backup directories have been reset.[/]")
+                console.print(
+                    "[green]Settings and backup directories have been reset.[/]"
+                )
                 raise SystemExit(0)
             case _:
                 raise SystemExit(0)
