@@ -1,6 +1,8 @@
 import json
 import os
 import shutil
+import stat
+from datetime import datetime
 from pathlib import Path
 
 import pyzipper
@@ -58,6 +60,7 @@ class FileHandler:
         self.to_path = to_path
         self.compression_level = compression_level
         self.zip_password = zip_password
+        self.temp_path = os.path.join(self.to_path, ".tuckaway-temp")
         print(from_paths, to_path, compression_level, zip_password)
 
     def initiate_snapshot_sequence(self):
@@ -70,6 +73,44 @@ class FileHandler:
             console.print(
                 "[red bold]Backup cannot start. You need to set a source directory, a destination folder, a compression level (0–9), and a zip password.[/]"
             )
+            return False
+
+        self.create_folder(self.temp_path)
+
+        for path in self.from_paths:
+            dest = os.path.join(self.temp_path, path.lstrip(os.sep))
+            self.recursively_copy_dir(path, dest)
+
+        self.compress_dir(
+            self.temp_path,
+            os.path.join(
+                self.to_path,
+                f"tuckaway-{datetime.now().astimezone().strftime('%d-%m-%y-%M-%H-%Z')}.zip",
+            ),
+            self.zip_password,
+            self.compression_level,
+        )
+
+        self.delete_dir_tree(self.temp_path)
+
+    def create_folder(self, path, parents=True):
+        try:
+            Path(path).mkdir(parents=parents, exist_ok=True)
+        except Exception as e:
+            console.print(f"[red bold]Failed to create folder:[/] {path}\n[dim]{e}[/]")
+
+    def delete_dir_tree(self, path):
+        def on_error(func, p, exc):
+            os.chmod(p, stat.S_IWRITE)
+            func(p)
+
+        try:
+            shutil.rmtree(path, onexc=on_error, ignore_errors=False)
+        except FileNotFoundError:
+            pass
+        except OSError as e:
+            console.print(f"[red bold]Failed to delete folder:[/] {path}\n[dim]{e}[/]")
+            raise
 
     @staticmethod
     def dir_is_valid(path, mode=os.R_OK):
@@ -355,7 +396,7 @@ def main():
                 ).ask()
 
                 file_handler = FileHandler(
-                    settings.sources,
+                    settings.get_from_paths(),
                     settings.to_dir,
                     settings.compression_level,
                     password,
