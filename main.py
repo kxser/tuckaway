@@ -53,8 +53,23 @@ def validate_dir(path):
 
 
 class FileHandler:
-    def __init__(self):
-        pass
+    def __init__(self, from_paths, to_path, compression_level, zip_password):
+        self.from_paths = from_paths
+        self.to_path = to_path
+        self.compression_level = compression_level
+        self.zip_password = zip_password
+        print(from_paths, to_path, compression_level, zip_password)
+
+    def initiate_snapshot_sequence(self):
+        if (
+            self.from_paths is None
+            or self.to_path is None
+            or self.compression_level is None
+            or self.zip_password is None
+        ):
+            console.print(
+                "[red bold]Backup cannot start. You need to set a source directory, a destination folder, a compression level (0–9), and a zip password.[/]"
+            )
 
     @staticmethod
     def dir_is_valid(path, mode=os.R_OK):
@@ -184,12 +199,12 @@ class Settings:
 def main():
     data_dir.mkdir(parents=True, exist_ok=True)
     settings = Settings(config_path)
-    file_handler = FileHandler()
-    file_handler.compress_dir(
-        "/Users/ritter/Documents/Vault/Projects/easybackup/from",
-        "/Users/ritter/Documents/Vault/Projects/easybackup/tmp.zip",
-        "123",
-    )
+    # file_handler = FileHandler()
+    # file_handler.compress_dir(
+    #     "/Users/ritter/Documents/Vault/Projects/easybackup/from",
+    #     "/Users/ritter/Documents/Vault/Projects/easybackup/tmp.zip",
+    #     "123",
+    # )
 
     console.print(
         Panel.fit(
@@ -334,7 +349,19 @@ def main():
                     )
 
             case "start_backup":
-                ...
+                password = questionary.password(
+                    "Zip Password:",
+                    validate=lambda p: len(p) > 0 or "Password cannot be empty.",
+                ).ask()
+
+                file_handler = FileHandler(
+                    settings.sources,
+                    settings.to_dir,
+                    settings.compression_level,
+                    password,
+                )
+                file_handler.initiate_snapshot_sequence()
+
             case "quit":
                 raise SystemExit(0)
             case "reset":
