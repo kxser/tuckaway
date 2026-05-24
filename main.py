@@ -259,8 +259,8 @@ def main():
     settings = Settings(config_path)
     # file_handler = FileHandler()
     # file_handler.compress_dir(
-    #     "/Users/ritter/Documents/Vault/Projects/easybackup/from",
-    #     "/Users/ritter/Documents/Vault/Projects/easybackup/tmp.zip",
+    #     "/Users/ritter/Documents/Vault/Projects/tuckaway/from",
+    #     "/Users/ritter/Documents/Vault/Projects/tuckaway/tmp.zip",
     #     "123",
     # )
 
