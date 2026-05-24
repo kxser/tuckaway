@@ -55,11 +55,12 @@ def validate_dir(path):
 
 
 class FileHandler:
-    def __init__(self, from_paths, to_path, compression_level, zip_password):
+    def __init__(self, from_paths, to_path, compression_level, zip_password, ignore_patterns):
         self.from_paths = from_paths
         self.to_path = to_path
         self.compression_level = compression_level
         self.zip_password = zip_password
+        self.ignore_patterns = ignore_patterns
         self.temp_path = os.path.join(self.to_path, ".tuckaway-temp")
 
     def initiate_snapshot_sequence(self):
@@ -74,47 +75,52 @@ class FileHandler:
             )
             return False
 
-        self.create_folder(self.temp_path)
+        if not self.create_folder(self.temp_path):
+            return False
 
-        from_paths_length = len(self.from_paths)
-        with Progress() as progress:
-            task = progress.add_task(
-                "[cyan]Copying directories...", total=from_paths_length
+        try:
+            from_paths_length = len(self.from_paths)
+            with Progress() as progress:
+                task = progress.add_task(
+                    "[cyan]Copying directories...", total=from_paths_length
+                )
+                for path in self.from_paths:
+                    dest = os.path.join(self.temp_path, path.lstrip(os.sep))
+                    self.recursively_copy_dir(path, dest, ignore=self.ignore_patterns)
+                    progress.advance(task)
+
+            console.print("[green]Directories copied successfully.[/]")
+
+            final_output_path = os.path.join(
+                self.to_path,
+                f"tuckaway-{datetime.now().astimezone().strftime('%Y%m%d-%H%M%S-%Z')}.zip",
             )
-            for path in self.from_paths:
-                dest = os.path.join(self.temp_path, path.lstrip(os.sep))
-                self.recursively_copy_dir(path, dest)
-                progress.advance(task)
-
-        console.print("[green]Directories copied successfully.[/]")
-
-        final_output_path = os.path.join(
-            self.to_path,
-            f"tuckaway-{datetime.now().astimezone().strftime('%d-%m-%y-%M-%H-%Z')}.zip",
-        )
-        self.compress_dir(
-            self.temp_path,
-            final_output_path,
-            self.zip_password,
-            self.compression_level,
-        )
-        console.print(
-            Panel(
-                "[green]Files compressed and zip created successfully.[/]\n"
-                f"[dim]You can access the file at [bold]{final_output_path}[/bold][/]",
-                title="✓",
-                border_style="green",
+            self.compress_dir(
+                self.temp_path,
+                final_output_path,
+                self.zip_password,
+                self.compression_level,
             )
-        )
+            console.print(
+                Panel(
+                    "[green]Files compressed and zip created successfully.[/]\n"
+                    f"[dim]You can access the file at [bold]{final_output_path}[/bold][/]",
+                    title="✓",
+                    border_style="green",
+                )
+            )
+        finally:
+            self.delete_dir_tree(self.temp_path)
 
-        self.delete_dir_tree(self.temp_path)
-        raise SystemExit(0)
+        return True
 
     def create_folder(self, path, parents=True):
         try:
             Path(path).mkdir(parents=parents, exist_ok=True)
         except Exception as e:
             console.print(f"[red bold]Failed to create folder:[/] {path}\n[dim]{e}[/]")
+            return False
+        return True
 
     def delete_dir_tree(self, path):
         def on_error(func, p, exc):
@@ -340,7 +346,6 @@ def main():
             case "remove_dir":
                 dir_path = questionary.text(
                     "Directory (absolute, with correct permissions):",
-                    validate=validate_dir,
                 ).ask()
 
                 if dir_path is None:
@@ -412,11 +417,15 @@ def main():
                     validate=lambda p: len(p) > 0 or "Password cannot be empty.",
                 ).ask()
 
+                if password is None:
+                    continue
+
                 file_handler = FileHandler(
                     settings.get_from_paths(),
                     settings.to_dir,
                     settings.compression_level,
                     password,
+                    settings.ignore_patterns,
                 )
                 file_handler.initiate_snapshot_sequence()
 
