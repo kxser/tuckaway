@@ -106,6 +106,7 @@ class FileHandler:
                 border_style="green",
             )
         )
+
         self.delete_dir_tree(self.temp_path)
         raise SystemExit(0)
 
