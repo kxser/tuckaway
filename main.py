@@ -61,7 +61,6 @@ class FileHandler:
         self.compression_level = compression_level
         self.zip_password = zip_password
         self.temp_path = os.path.join(self.to_path, ".tuckaway-temp")
-        print(from_paths, to_path, compression_level, zip_password)
 
     def initiate_snapshot_sequence(self):
         if (
@@ -77,21 +76,38 @@ class FileHandler:
 
         self.create_folder(self.temp_path)
 
-        for path in self.from_paths:
-            dest = os.path.join(self.temp_path, path.lstrip(os.sep))
-            self.recursively_copy_dir(path, dest)
+        from_paths_length = len(self.from_paths)
+        with Progress() as progress:
+            task = progress.add_task(
+                "[cyan]Copying directories...", total=from_paths_length
+            )
+            for path in self.from_paths:
+                dest = os.path.join(self.temp_path, path.lstrip(os.sep))
+                self.recursively_copy_dir(path, dest)
+                progress.advance(task)
 
+        console.print("[green]Directories copied successfully.[/]")
+
+        final_output_path = os.path.join(
+            self.to_path,
+            f"tuckaway-{datetime.now().astimezone().strftime('%d-%m-%y-%M-%H-%Z')}.zip",
+        )
         self.compress_dir(
             self.temp_path,
-            os.path.join(
-                self.to_path,
-                f"tuckaway-{datetime.now().astimezone().strftime('%d-%m-%y-%M-%H-%Z')}.zip",
-            ),
+            final_output_path,
             self.zip_password,
             self.compression_level,
         )
-
+        console.print(
+            Panel(
+                "[green]Files compressed and zip created successfully.[/]\n"
+                f"[dim]You can access the file at [bold]{final_output_path}[/bold][/]",
+                title="✓",
+                border_style="green",
+            )
+        )
         self.delete_dir_tree(self.temp_path)
+        raise SystemExit(0)
 
     def create_folder(self, path, parents=True):
         try:
