@@ -63,7 +63,7 @@ class FileHandler:
     def recursively_copy_dir(self, from_dir, to_dir, ignore=None):
         # to_dir = os.path.join(to_dir, os.path.relpath(from_dir, "/"))
 
-        if not ignore == None:
+        if ignore is not None:
             shutil.copytree(
                 from_dir,
                 to_dir,
@@ -82,27 +82,26 @@ class FileHandler:
                 dirs_exist_ok=True,
             )
 
+    def compress_dir(self, src_dir, out_path, password, level=6):
+        files = []
+        for root, _, names in os.walk(src_dir):
+            for name in names:
+                files.append(os.path.join(root, name))
 
-def compress_dir(self, src_dir, out_path, password, level=6):
-    files = []
-    for root, _, names in os.walk(src_dir):
-        for name in names:
-            files.append(os.path.join(root, name))
-
-    with pyzipper.AESZipFile(
-        out_path,
-        "w",
-        compression=pyzipper.ZIP_DEFLATED,
-        compresslevel=level,
-        encryption=pyzipper.WZ_AES,
-    ) as zf:
-        zf.setpassword(password.encode())
-        with Progress() as progress:
-            task = progress.add_task("Compressing", total=len(files))
-            for f in files:
-                arcname = os.path.relpath(f, src_dir)
-                zf.write(f, arcname)
-                progress.advance(task)
+        with pyzipper.AESZipFile(
+            out_path,
+            "w",
+            compression=pyzipper.ZIP_DEFLATED,
+            compresslevel=level,
+            encryption=pyzipper.WZ_AES,
+        ) as zf:
+            zf.setpassword(password.encode())
+            with Progress() as progress:
+                task = progress.add_task("Compressing", total=len(files))
+                for f in files:
+                    arcname = os.path.relpath(f, src_dir)
+                    zf.write(f, arcname)
+                    progress.advance(task)
 
 
 class Settings:
@@ -186,10 +185,12 @@ def main():
     data_dir.mkdir(parents=True, exist_ok=True)
     settings = Settings(config_path)
     file_handler = FileHandler()
-    file_handler.recursively_copy_dir(
+    file_handler.compress_dir(
         "/Users/ritter/Documents/Vault/Projects/easybackup/from",
-        "/Users/ritter/Documents/Vault/Projects/easybackup/to",
+        "/Users/ritter/Documents/Vault/Projects/easybackup/tmp.zip",
+        "123",
     )
+
     console.print(
         Panel.fit(
             f"[bold bright_cyan]tuckaway[/] [dim]v0.1.0[/]\n"
